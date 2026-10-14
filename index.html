@@ -1,0 +1,567 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Перо Фурье: рисование окружностями</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:ital,wght@0,400;0,500;0,800;1,400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#F4F4F2; --ink:#000000; --mute:#6B6B69; --accent:#F0402A;
+  --panel:#E8E8E5; --ghost:rgba(0,0,0,.10); --ring:rgba(0,0,0,.30); --link:rgba(0,0,0,.55);
+  --font:"Inter Tight","Helvetica Neue",Helvetica,Arial,sans-serif;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#000000; --ink:#F4F4F2; --mute:#8E8E8B; --panel:#151515;
+    --ghost:rgba(244,244,242,.12); --ring:rgba(244,244,242,.30); --link:rgba(244,244,242,.6);
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#000000; --ink:#F4F4F2; --mute:#8E8E8B; --panel:#151515;
+  --ghost:rgba(244,244,242,.12); --ring:rgba(244,244,242,.30); --link:rgba(244,244,242,.6);
+}
+*,*::before,*::after{box-sizing:inherit}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px);-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--font);font-size:17px;line-height:1.4;
+  min-height:100%;padding-inline:max(20px,env(safe-area-inset-left,0px)) max(20px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1180px;margin:0 auto}
+header{display:flex;align-items:baseline;justify-content:space-between;gap:16px;padding:18px 0 12px;border-bottom:2px solid var(--ink)}
+.brand{font-weight:800;font-size:22px;letter-spacing:-.03em;line-height:1}
+.tools{display:flex;gap:6px}
+.tools button{font-size:15px;padding:6px 10px}
+.hero{display:grid;grid-template-columns:1fr;gap:18px;padding:34px 0 26px}
+h1{margin:0;font-weight:800;font-size:clamp(38px,12.2vw,112px);line-height:.88;letter-spacing:-.05em;hyphens:none;overflow-wrap:normal}
+.lede{margin:0;font-size:18px;max-width:36ch;align-self:end}
+@media (min-width:860px){.hero{grid-template-columns:1fr 320px;padding:34px 0 26px;align-items:end}}
+button,.btn{font:inherit;color:var(--ink);background:transparent;border:2px solid var(--ink);border-radius:0;padding:10px 14px;cursor:pointer;line-height:1.1;display:inline-block;user-select:none;-webkit-user-select:none}
+button:hover,.btn:hover{background:var(--ink);color:var(--paper)}
+button.on,.btn.on{background:var(--ink);color:var(--paper)}
+button[hidden]{display:none}
+button:focus-visible,input:focus-visible,.btn:focus-within{outline:3px solid var(--accent);outline-offset:2px}
+.stage{position:relative;border-top:2px solid var(--ink);border-bottom:2px solid var(--ink);background:var(--panel)}
+canvas{display:block;width:100%;aspect-ratio:1/1.12;touch-action:pan-y}
+canvas.draw{touch-action:none;cursor:crosshair}
+@media (min-width:860px){canvas{aspect-ratio:16/10}}
+.hint{position:absolute;inset:0;display:none;align-items:center;justify-content:center;pointer-events:none;padding:20px;text-align:center}
+.hint.show{display:flex}
+.hint span{background:var(--paper);border:2px solid var(--ink);padding:12px 16px;font-weight:500}
+.toast{position:absolute;left:12px;right:12px;bottom:12px;display:none;background:var(--paper);border:2px solid var(--ink);padding:9px 12px;font-size:15px;font-weight:500}
+.toast.show{display:block}
+.legend{margin:12px 0 0;color:var(--mute);font-size:15px;max-width:70ch}
+.panel{display:grid;grid-template-columns:1fr;gap:26px;padding:22px 0 8px}
+@media (min-width:860px){.panel{grid-template-columns:1fr 1fr;gap:48px}}
+.group{display:flex;flex-direction:column;gap:10px}
+.gl{font-weight:800;font-size:15px;letter-spacing:-.01em}
+.seg{display:flex;flex-wrap:wrap;gap:6px}
+.row{display:grid;grid-template-columns:7.2em 1fr 3.4em;align-items:center;gap:10px}
+.row output{text-align:right;font-variant-numeric:tabular-nums;font-weight:500}
+input[type=range]{width:100%;accent-color:var(--accent);height:28px;margin:0}
+.checks{display:flex;gap:18px;flex-wrap:wrap}
+.checks label{display:flex;align-items:center;gap:8px;cursor:pointer}
+.checks input{accent-color:var(--accent);width:18px;height:18px;margin:0}
+.eq{font-size:clamp(18px,3.6vw,28px);line-height:1.1;display:flex;align-items:center;gap:.35em;flex-wrap:wrap;margin:2px 0 10px}
+.eq i{font-style:italic;font-weight:400}
+.eq sub{font-size:.62em;vertical-align:baseline;position:relative;top:.28em}
+.sum{display:inline-flex;flex-direction:column;align-items:center;line-height:1;margin:0 .1em}
+.sum .lim{font-size:.5em}
+.sum .sig{font-size:1.7em;line-height:1}
+.err{font-size:18px;margin:6px 0 0}
+.err b{font-weight:800;color:var(--accent)}
+.notes{display:grid;grid-template-columns:1fr;gap:26px;padding:34px 0 18px;margin-top:22px;border-top:2px solid var(--ink)}
+@media (min-width:860px){.notes{grid-template-columns:repeat(3,1fr);gap:40px}}
+.notes h2{margin:0 0 8px;font-size:22px;font-weight:800;letter-spacing:-.03em;line-height:1.05}
+.notes p{margin:0;max-width:38ch}
+.terms{margin:0 0 28px;max-width:72ch;font-size:16px}
+footer{padding:14px 0 28px;color:var(--mute);font-size:14px;border-top:1px solid var(--ink)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);opacity:0}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand" data-i="brand">Перо Фурье</div>
+    <div class="tools">
+      <button id="lang" type="button" aria-label="Language">EN</button>
+      <button id="theme" type="button" data-i="theme">Тема</button>
+    </div>
+  </header>
+
+  <section class="hero">
+    <h1 data-i="h1">Рисование<br>окружностями</h1>
+    <p class="lede" data-i="lede">Любую замкнутую линию можно прочертить пером, если нанизать друг на друга вращающиеся окружности. Это ряд Фурье. Выберите фигуру, нарисуйте свою или загрузите силуэт.</p>
+  </section>
+
+  <div class="stage" id="stage">
+    <canvas id="cv" role="img" aria-label="Анимация: цепочки вращающихся окружностей рисуют контур фигуры"></canvas>
+    <div class="hint" id="hint"><span data-i="hint">Проведите замкнутую линию пальцем или мышью</span></div>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  </div>
+  <p class="legend" data-i="legend">Верхняя цепочка окружностей задаёт x, левая задаёт y. Штриховые линии сходятся в точке пера. Следующая гармоника добавляется, когда перо замкнёт контур.</p>
+
+  <section class="panel">
+    <div class="group">
+      <div class="gl" data-i="shape">Фигура</div>
+      <div class="seg" id="shapes">
+        <button type="button" data-shape="star" data-i="star">Звезда</button>
+        <button type="button" data-shape="heart" data-i="heart">Сердце</button>
+        <button type="button" data-shape="glyph" data-i="glyph">Буква</button>
+        <button type="button" data-shape="draw" data-i="draw">Нарисовать</button>
+        <label class="btn" for="file" data-shape="photo" data-i="photo">Свой силуэт</label>
+        <button type="button" id="inv" hidden data-i="inv">Инверсия</button>
+      </div>
+      <input class="sr" id="file" type="file" accept="image/*">
+      <div class="row">
+        <label for="n" data-i="harm">Гармоник</label>
+        <input id="n" type="range" min="1" max="120" step="1" value="1">
+        <output id="nOut">1</output>
+      </div>
+      <div class="row">
+        <label for="sp" data-i="speed">Скорость</label>
+        <input id="sp" type="range" min="0" max="100" step="1" value="60">
+        <output id="spOut">×1,0</output>
+      </div>
+      <div class="seg">
+        <button type="button" id="sweep">Наращивать</button>
+        <button type="button" id="pause">Пауза</button>
+      </div>
+      <div class="checks">
+        <label><input type="checkbox" id="cCircles" checked><span data-i="circles">Окружности</span></label>
+        <label><input type="checkbox" id="cGhost" checked><span data-i="ghost">Исходный силуэт</span></label>
+      </div>
+    </div>
+
+    <div class="group">
+      <div class="gl" data-i="series">Формулы</div>
+      <div class="eq" aria-label="x_N(t) = сумма от k=1 до N (a_k cos kt + b_k sin kt)">
+        <span><i>x</i><sub>N</sub>(<i>t</i>) =</span>
+        <span class="sum"><span class="lim">N</span><span class="sig">&Sigma;</span><span class="lim"><i>k</i>=1</span></span>
+        <span>(<i>a</i><sub>k</sub> cos <i>kt</i> + <i>b</i><sub>k</sub> sin <i>kt</i>)</span>
+      </div>
+      <div class="eq" aria-label="y_N(t) = сумма от k=1 до N (c_k cos kt + d_k sin kt)">
+        <span><i>y</i><sub>N</sub>(<i>t</i>) =</span>
+        <span class="sum"><span class="lim">N</span><span class="sig">&Sigma;</span><span class="lim"><i>k</i>=1</span></span>
+        <span>(<i>c</i><sub>k</sub> cos <i>kt</i> + <i>d</i><sub>k</sub> sin <i>kt</i>)</span>
+      </div>
+      <p class="err" id="err"></p>
+    </div>
+  </section>
+
+  <section class="notes">
+    <div>
+      <h2 data-i="n1h">Окружность даёт колебание</h2>
+      <p data-i="n1p">Точка, ровно идущая по окружности, даёт проекцию в виде волны: cos и sin. Радиус задаёт размах, скорость вращения задаёт частоту, то есть номер гармоники.</p>
+    </div>
+    <div>
+      <h2 data-i="n2h">Две цепочки, один контур</h2>
+      <p data-i="n2p">Контур — путь точки на плоскости. Координаты x(t) и y(t) раскладываются в ряды Фурье по отдельности: у каждой своя цепочка окружностей.</p>
+    </div>
+    <div>
+      <h2 data-i="n3h">Гармоника за гармоникой</h2>
+      <p data-i="n3p">Одна гармоника на координату даёт эллипс. Каждая следующая уточняет контур: проступают детали. У острых углов остаётся лёгкое «дрожание» — явление Гиббса.</p>
+    </div>
+  </section>
+  <p class="terms" data-i="terms">Как это называют: гармонический анализ, ряды Фурье, эпициклы, эллиптические дескрипторы Фурье. В популярных роликах чаще берут одну цепочку окружностей с комплексными экспонентами; здесь две цепочки, по одной на координату.</p>
+
+  <footer data-i="foot">Всё считается в браузере: картинка никуда не отправляется. Для своего силуэта подойдёт JPG или PNG: контрастный предмет на ровном фоне или прозрачность. Если контур выбран наоборот, нажмите «Инверсия».</footer>
+</div>
+
+<script>
+(function(){
+'use strict';
+var M=1024, MAXK=120, TAU=Math.PI*2, BASE_T=7, HOLD_AUTO=0.7, HOLD_MANUAL=0.9;
+var LEVELS=[1,2,3,5,8,13,21,34,55,89,120];
+var COS=new Float64Array(M), SIN=new Float64Array(M);
+for(var m=0;m<M;m++){COS[m]=Math.cos(TAU*m/M);SIN[m]=Math.sin(TAU*m/M);}
+
+/* ---------- i18n ---------- */
+var T={
+ ru:{brand:'Перо Фурье',theme:'Тема',h1:'Рисование<br>окружностями',
+  lede:'Любую замкнутую линию можно прочертить пером, если нанизать друг на друга вращающиеся окружности. Это ряд Фурье. Выберите фигуру, нарисуйте свою или загрузите силуэт.',
+  hint:'Проведите замкнутую линию пальцем или мышью',
+  legend:'Верхняя цепочка окружностей задаёт x, левая задаёт y. Штриховые линии сходятся в точке пера. Следующая гармоника добавляется, когда перо замкнёт контур.',
+  shape:'Фигура',star:'Звезда',heart:'Сердце',glyph:'Буква',draw:'Нарисовать',photo:'Свой силуэт',inv:'Инверсия',
+  harm:'Гармоник',speed:'Скорость',sweep:'Наращивать',stop:'Стоп',pause:'Пауза',resume:'Пуск',circles:'Окружности',ghost:'Исходный силуэт',
+  series:'Формулы',
+  n1h:'Окружность даёт колебание',n1p:'Точка, ровно идущая по окружности, даёт проекцию в виде волны: cos и sin. Радиус задаёт размах, скорость вращения задаёт частоту, то есть номер гармоники.',
+  n2h:'Две цепочки, один контур',n2p:'Контур — путь точки на плоскости. Координаты x(t) и y(t) раскладываются в ряды Фурье по отдельности: у каждой своя цепочка окружностей.',
+  n3h:'Гармоника за гармоникой',n3p:'Одна гармоника на координату даёт эллипс. Каждая следующая уточняет контур: проступают детали. У острых углов остаётся лёгкое «дрожание» — явление Гиббса.',
+  terms:'Как это называют: гармонический анализ, ряды Фурье, эпициклы, эллиптические дескрипторы Фурье. В популярных роликах чаще берут одну цепочку окружностей с комплексными экспонентами; здесь две цепочки, по одной на координату.',
+  foot:'Всё считается в браузере: картинка никуда не отправляется. Для своего силуэта подойдёт JPG или PNG: контрастный предмет на ровном фоне или прозрачность. Если контур выбран наоборот, нажмите «Инверсия».',
+  err:'Наибольшая ошибка по контуру: <b>{v}%</b> его высоты',
+  errNone:'Контур не найден. Возьмите контрастную картинку с одним предметом на ровном фоне.',
+  errShort:'Линия слишком короткая. Нарисуйте замкнутую фигуру покрупнее.',
+  errFile:'Не удалось открыть файл. Сохраните его как JPG или PNG.',
+  aria:'Анимация: цепочки вращающихся окружностей рисуют контур фигуры',dec:','},
+ en:{brand:'Fourier Pen',theme:'Theme',h1:'Drawing<br>with circles',
+  lede:'Any closed line can be traced by a pen if you stack rotating circles on top of each other. That is a Fourier series. Pick a shape, draw your own or load a silhouette.',
+  hint:'Draw a closed line with your finger or mouse',
+  legend:'The top chain of circles sets x, the left one sets y. The dashed lines meet at the pen. The next harmonic is added once the pen has closed the outline.',
+  shape:'Shape',star:'Star',heart:'Heart',glyph:'Letter',draw:'Draw',photo:'Your silhouette',inv:'Invert',
+  harm:'Harmonics',speed:'Speed',sweep:'Add harmonics',stop:'Stop',pause:'Pause',resume:'Play',circles:'Circles',ghost:'Original silhouette',
+  series:'Formulas',
+  n1h:'A circle gives an oscillation',n1p:'A point moving steadily around a circle projects to a wave: cos and sin. The radius sets the amplitude, the rotation speed sets the frequency, that is the harmonic number.',
+  n2h:'Two chains, one outline',n2p:'An outline is the path of a point on the plane. Its coordinates x(t) and y(t) are expanded into Fourier series separately: each has its own chain of circles.',
+  n3h:'Harmonic by harmonic',n3p:'One harmonic per coordinate gives an ellipse. Each new one refines the outline and brings out more detail. Sharp corners keep a slight ringing: the Gibbs phenomenon.',
+  terms:'Also known as: harmonic analysis, Fourier series, epicycles, elliptic Fourier descriptors. Popular videos usually use a single chain of circles with complex exponentials; here there are two chains, one per coordinate.',
+  foot:'Everything runs in your browser: the image is never uploaded. For your own silhouette use a JPG or PNG: a high-contrast object on a plain background, or transparency. If the wrong region is traced, press Invert.',
+  err:'Largest error along the outline: <b>{v}%</b> of its height',
+  errNone:'No outline found. Use a high-contrast picture with one object on a plain background.',
+  errShort:'The line is too short. Draw a larger closed shape.',
+  errFile:'Could not open the file. Save it as JPG or PNG.',
+  aria:'Animation: chains of rotating circles draw the outline of a shape',dec:'.'}
+};
+var lang=(navigator.language||'ru').toLowerCase().match(/^(ru|uk|be)/)?'ru':'en';
+function tr(k){return T[lang][k];}
+
+/* ---------- DOM ---------- */
+var cv=document.getElementById('cv'), ctx=cv.getContext('2d');
+var stage=document.getElementById('stage'), hint=document.getElementById('hint'), toastEl=document.getElementById('toast');
+var nIn=document.getElementById('n'), nOut=document.getElementById('nOut');
+var spIn=document.getElementById('sp'), spOut=document.getElementById('spOut');
+var cCircles=document.getElementById('cCircles'), cGhost=document.getElementById('cGhost');
+var sweepBtn=document.getElementById('sweep'), pauseBtn=document.getElementById('pause'), invBtn=document.getElementById('inv');
+var errEl=document.getElementById('err'), fileIn=document.getElementById('file'), shapesBox=document.getElementById('shapes');
+
+/* ---------- state ---------- */
+var X=new Float64Array(M), Y=new Float64Array(M), HEIGHT=2;
+var A=new Float64Array(MAXK+1), B=new Float64Array(MAXK+1), C=new Float64Array(MAXK+1), D=new Float64Array(MAXK+1);
+var RX=new Float64Array(M), RY=new Float64Array(M), PX=null, PY=null;
+var recN=-1, errPct=0, hasShape=false, N=1, nVis=20;
+var auto=true, levelIdx=0, phase='draw', prog=0, holdT=0, paused=false;
+var lastTs=0, mode='star', drawing=false, drawPts=[], lastImg=null, inverted=false, toastT=0;
+var colors={}, dpr=1, W=0, H=0;
+var reduceMotion=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function applyLang(){
+  document.documentElement.lang=lang;
+  document.querySelectorAll('[data-i]').forEach(function(el){var k=el.getAttribute('data-i'); if(T[lang][k]!==undefined) el.innerHTML=T[lang][k];});
+  document.getElementById('lang').textContent=lang==='ru'?'EN':'RU';
+  document.title=lang==='ru'?'Перо Фурье: рисование окружностями':'Fourier Pen: drawing with circles';
+  cv.setAttribute('aria-label',tr('aria'));
+  updateButtons(); updateErr(); spOut.textContent=speedLabel();
+}
+function speedMult(){return 0.25*Math.pow(10,parseFloat(spIn.value)/100);}
+function speedLabel(){var s='×'+speedMult().toFixed(1); return lang==='ru'?s.replace('.',','):s;}
+function updateButtons(){
+  sweepBtn.textContent=auto?tr('stop'):tr('sweep'); sweepBtn.classList.toggle('on',auto);
+  pauseBtn.textContent=paused?tr('resume'):tr('pause'); pauseBtn.classList.toggle('on',paused);
+  invBtn.hidden=!(mode==='photo'&&lastImg);
+}
+function toast(t,ms){
+  clearTimeout(toastT); toastEl.textContent=t||''; toastEl.classList.toggle('show',!!t);
+  if(t&&ms) toastT=setTimeout(function(){toastEl.classList.remove('show');},ms);
+}
+
+/* ---------- geometry helpers ---------- */
+function resampleClosed(px,py,m){
+  var n=px.length, cum=new Float64Array(n+1), i, j;
+  for(i=0;i<n;i++){var k=(i+1)%n; cum[i+1]=cum[i]+Math.hypot(px[k]-px[i],py[k]-py[i]);}
+  var total=cum[n]; if(total<=0) return null;
+  var ox=new Float64Array(m), oy=new Float64Array(m); j=0;
+  for(i=0;i<m;i++){
+    var s=i*total/m; while(j<n-1&&cum[j+1]<s) j++;
+    var seg=cum[j+1]-cum[j], u=seg>0?(s-cum[j])/seg:0, k2=(j+1)%n;
+    ox[i]=px[j]+(px[k2]-px[j])*u; oy[i]=py[j]+(py[k2]-py[j])*u;
+  }
+  return {x:ox,y:oy};
+}
+function smoothClosed(px,py,w){
+  var n=px.length, ox=new Float64Array(n), oy=new Float64Array(n), h=(w-1)>>1;
+  for(var i=0;i<n;i++){var sx=0,sy=0;for(var d=-h;d<=h;d++){var k=(i+d+n*4)%n;sx+=px[k];sy+=py[k];}ox[i]=sx/w;oy[i]=sy/w;}
+  return {x:ox,y:oy};
+}
+function setShapeFromPoints(px,py,smoothW){
+  if(px.length<8) return false;
+  var p={x:px,y:py};
+  if(smoothW>1) p=smoothClosed(p.x,p.y,smoothW);
+  var r=resampleClosed(p.x,p.y,M); if(!r) return false;
+  var minx=1e9,maxx=-1e9,miny=1e9,maxy=-1e9,i;
+  for(i=0;i<M;i++){minx=Math.min(minx,r.x[i]);maxx=Math.max(maxx,r.x[i]);miny=Math.min(miny,r.y[i]);maxy=Math.max(maxy,r.y[i]);}
+  var ext=Math.max(maxx-minx,maxy-miny); if(ext<=0) return false;
+  var cx=(minx+maxx)/2, cy=(miny+maxy)/2, sc=2/ext;
+  for(i=0;i<M;i++){X[i]=(r.x[i]-cx)*sc; Y[i]=(r.y[i]-cy)*sc;}
+  HEIGHT=(maxy-miny)*sc;
+  computeCoefs(); recN=-1; hasShape=true; return true;
+}
+function computeCoefs(){
+  var a0=0,c0=0,j,k;
+  for(j=0;j<M;j++){a0+=X[j];c0+=Y[j];}
+  A[0]=a0/M; C[0]=c0/M; B[0]=0; D[0]=0;
+  for(k=1;k<=MAXK;k++){
+    var sa=0,sb=0,sc=0,sd=0;
+    for(j=0;j<M;j++){var idx=(k*j)%M, cs=COS[idx], sn=SIN[idx]; sa+=X[j]*cs; sb+=X[j]*sn; sc+=Y[j]*cs; sd+=Y[j]*sn;}
+    A[k]=2*sa/M; B[k]=2*sb/M; C[k]=2*sc/M; D[k]=2*sd/M;
+  }
+}
+function reconstruct(n){
+  var maxErr=0;
+  for(var j=0;j<M;j++){
+    var x=A[0], y=C[0];
+    for(var k=1;k<=n;k++){var idx=(k*j)%M, cs=COS[idx], sn=SIN[idx]; x+=A[k]*cs+B[k]*sn; y+=C[k]*cs+D[k]*sn;}
+    RX[j]=x; RY[j]=y;
+    var e=Math.hypot(x-X[j],y-Y[j]); if(e>maxErr) maxErr=e;
+  }
+  recN=n; errPct=maxErr/HEIGHT*100; updateErr();
+}
+function fmt(v){var s=v<10?v.toFixed(2):v.toFixed(1); return lang==='ru'?s.replace('.',','):s;}
+function updateErr(){ errEl.innerHTML=hasShape?tr('err').replace('{v}',fmt(errPct)):''; }
+
+/* ---------- shapes ---------- */
+function shapeStar(){
+  var px=[],py=[]; for(var i=0;i<10;i++){var r=i%2?0.42:1, a=Math.PI/2+i*Math.PI/5; px.push(r*Math.cos(a)); py.push(r*Math.sin(a));}
+  return setShapeFromPoints(px,py,1);
+}
+function shapeHeart(){
+  var px=[],py=[]; for(var i=0;i<2400;i++){var t=TAU*i/2400;
+    px.push(16*Math.pow(Math.sin(t),3));
+    py.push(13*Math.cos(t)-5*Math.cos(2*t)-2*Math.cos(3*t)-Math.cos(4*t));}
+  return setShapeFromPoints(px,py,1);
+}
+function shapeGlyph(){
+  var s=520, c=document.createElement('canvas'); c.width=c.height=s; var g=c.getContext('2d',{willReadFrequently:true});
+  g.font='800 440px '+getComputedStyle(document.documentElement).getPropertyValue('--font');
+  g.textAlign='center'; g.textBaseline='middle'; g.fillStyle='#000'; g.fillText(lang==='ru'?'Ф':'R',s/2,s/2+20);
+  var id=g.getImageData(0,0,s,s).data, mask=new Uint8Array(s*s);
+  for(var i=0;i<s*s;i++) mask[i]=id[i*4+3]>128?1:0;
+  return traceMask(mask,s,s);
+}
+function largestComponent(mask,w,h){
+  var lab=new Int32Array(w*h), best=0,bestSize=0,cur=0, q=new Int32Array(w*h);
+  for(var s=0;s<w*h;s++){
+    if(!mask[s]||lab[s]) continue; cur++; var qh=0,qt=0; q[qt++]=s; lab[s]=cur; var size=0;
+    while(qh<qt){var p=q[qh++]; size++; var x=p%w, y=(p/w)|0;
+      for(var dy=-1;dy<=1;dy++)for(var dx=-1;dx<=1;dx++){ if(!dx&&!dy) continue; var nx=x+dx, ny=y+dy; if(nx<0||ny<0||nx>=w||ny>=h) continue; var n=ny*w+nx; if(mask[n]&&!lab[n]){lab[n]=cur;q[qt++]=n;} } }
+    if(size>bestSize){bestSize=size;best=cur;}
+  }
+  if(!best) return null;
+  var out=new Uint8Array(w*h); for(var i=0;i<w*h;i++) out[i]=lab[i]===best?1:0; return out;
+}
+function mooreTrace(mask,w,h){
+  var sx=-1,sy=-1; outer: for(var y=0;y<h;y++)for(var x=0;x<w;x++){ if(mask[y*w+x]){sx=x;sy=y;break outer;} }
+  if(sx<0) return null;
+  var dx=[1,1,0,-1,-1,-1,0,1], dy=[0,1,1,1,0,-1,-1,-1];
+  function idxOf(vx,vy){for(var i=0;i<8;i++) if(dx[i]===vx&&dy[i]===vy) return i; return 0;}
+  var cx=sx, cy=sy, bi=4, pts=[[cx,cy]], guard=w*h*4+10, steps=0;
+  do{
+    var found=false;
+    for(var i=1;i<=8;i++){
+      var di=(bi+i)%8, nx=cx+dx[di], ny=cy+dy[di];
+      if(nx>=0&&ny>=0&&nx<w&&ny<h&&mask[ny*w+nx]){
+        var pd=(di+7)%8, bx=cx+dx[pd], by=cy+dy[pd];
+        cx=nx; cy=ny; bi=idxOf(bx-cx,by-cy); found=true; break;
+      }
+    }
+    if(!found) break;
+    pts.push([cx,cy]); steps++;
+  }while(!(cx===sx&&cy===sy&&steps>2)&&steps<guard);
+  return pts;
+}
+function traceMask(mask,w,h){
+  var comp=largestComponent(mask,w,h); if(!comp) return false;
+  var pts=mooreTrace(comp,w,h); if(!pts||pts.length<40) return false;
+  var px=[],py=[]; for(var i=0;i<pts.length-1;i++){px.push(pts[i][0]);py.push(-pts[i][1]);}
+  return setShapeFromPoints(px,py,7);
+}
+function shapeFromImage(img,invert){
+  var maxS=400, sc=Math.min(1,maxS/Math.max(img.naturalWidth||img.width,img.naturalHeight||img.height));
+  var iw=Math.max(8,Math.round((img.naturalWidth||img.width)*sc)), ih=Math.max(8,Math.round((img.naturalHeight||img.height)*sc));
+  var c=document.createElement('canvas'); c.width=iw+2; c.height=ih+2; var g=c.getContext('2d',{willReadFrequently:true});
+  g.drawImage(img,1,1,iw,ih);
+  var w=c.width,h=c.height, d=g.getImageData(0,0,w,h).data, n=w*h, mask=new Uint8Array(n), i,x,y;
+  var trans=0; for(y=1;y<h-1;y++)for(x=1;x<w-1;x++) if(d[(y*w+x)*4+3]<250) trans++;
+  if(trans>0.01*iw*ih){
+    for(i=0;i<n;i++) mask[i]=d[i*4+3]>128?1:0;
+  }else{
+    var gray=new Uint8Array(n), hist=new Float64Array(256);
+    for(i=0;i<n;i++){gray[i]=Math.round(0.299*d[i*4]+0.587*d[i*4+1]+0.114*d[i*4+2]);}
+    for(y=1;y<h-1;y++)for(x=1;x<w-1;x++) hist[gray[y*w+x]]++;
+    var total=iw*ih, sum=0, t; for(t=0;t<256;t++) sum+=t*hist[t];
+    var wB=0,sB=0,mx=-1,thr=128; for(t=0;t<256;t++){ wB+=hist[t]; if(!wB) continue; var wF=total-wB; if(!wF) break; sB+=t*hist[t]; var mB=sB/wB, mF=(sum-sB)/wF, v=wB*wF*(mB-mF)*(mB-mF); if(v>mx){mx=v;thr=t;} }
+    var bs=0,bc=0; for(x=1;x<w-1;x++){bs+=gray[1*w+x]+gray[(h-2)*w+x];bc+=2;} for(y=2;y<h-2;y++){bs+=gray[y*w+1]+gray[y*w+w-2];bc+=2;}
+    var darkFg=(bs/bc)>thr; if(invert) darkFg=!darkFg;
+    for(y=1;y<h-1;y++)for(x=1;x<w-1;x++){var gv=gray[y*w+x]; mask[y*w+x]=(darkFg?gv<=thr:gv>thr)?1:0;}
+  }
+  return traceMask(mask,w,h);
+}
+
+/* ---------- drawing the scene ---------- */
+function sizeCanvas(){
+  var r=cv.getBoundingClientRect(); dpr=Math.min(2,window.devicePixelRatio||1);
+  var w=Math.max(1,Math.round(r.width*dpr)), h=Math.max(1,Math.round(r.height*dpr));
+  if(cv.width!==w||cv.height!==h){cv.width=w;cv.height=h;}
+  W=r.width; H=r.height;
+}
+function readColors(){
+  var cs=getComputedStyle(document.documentElement);
+  ['--ink','--accent','--ghost','--ring','--link','--paper','--mute','--font'].forEach(function(k){colors[k]=cs.getPropertyValue(k).trim();});
+}
+function layout(){
+  var S=0.215*Math.min(W,H*0.95);
+  return {S:S, ox:0.61*W, oy:0.64*H, bx:0.20*W, by:0.20*H};
+}
+function drawChain(L,kind,n,th){
+  var arrA=kind==='x'?A:C, arrB=kind==='x'?B:D, S=L.S, px, py;
+  if(kind==='x'){px=L.ox+S*A[0]; py=L.by;} else {px=L.bx; py=L.oy-S*C[0];}
+  for(var k=1;k<=n;k++){
+    var a=arrA[k], b=arrB[k], r=Math.hypot(a,b), phi=Math.atan2(b,a), ang=k*th-phi+(kind==='y'?Math.PI/2:0);
+    var vx=r*Math.cos(ang), vy=r*Math.sin(ang), nx=px+S*vx, ny=py-S*vy, rp=S*r;
+    if(rp>0.6*dpr){
+      ctx.beginPath(); ctx.arc(px,py,rp,0,TAU);
+      ctx.strokeStyle=k===1?colors['--ink']:colors['--ring']; ctx.lineWidth=(k===1?1.6:1)*dpr; ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(px,py); ctx.lineTo(nx,ny);
+      ctx.strokeStyle=colors['--link']; ctx.lineWidth=1*dpr; ctx.stroke();
+    }
+    px=nx; py=ny;
+  }
+  return {x:px,y:py};
+}
+function advance(){
+  if(auto){
+    if(levelIdx<LEVELS.length-1){
+      PX=RX.slice(); PY=RY.slice(); levelIdx++; setNQuiet(LEVELS[levelIdx]); prog=0; phase='draw';
+    }else{ auto=false; phase='done'; updateButtons(); }
+  }else{ prog=0; phase='draw'; }
+}
+function frame(ts){
+  requestAnimationFrame(frame);
+  var dt=lastTs?Math.min(0.1,(ts-lastTs)/1000):0; lastTs=ts;
+  sizeCanvas();
+  if(hasShape&&!paused&&!reduceMotion&&!drawing){
+    if(phase==='draw'){
+      var dth=Math.min(speedMult()/BASE_T*dt*TAU, 2.2/Math.max(1,nVis));
+      prog+=dth/TAU; if(prog>=1){prog=1; phase='hold'; holdT=0;}
+    }else if(phase==='hold'){
+      holdT+=dt; if(holdT>=(auto?HOLD_AUTO:HOLD_MANUAL)) advance();
+    }
+  }
+  render();
+}
+function render(){
+  ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,cv.width,cv.height);
+  var lay=layout(), L={S:lay.S*dpr,ox:lay.ox*dpr,oy:lay.oy*dpr,bx:lay.bx*dpr,by:lay.by*dpr}, S=L.S, i;
+  if(drawing||(mode==='draw'&&!hasShape&&drawPts.length)){
+    if(drawPts.length>1){ctx.beginPath();ctx.moveTo(drawPts[0][0]*dpr,drawPts[0][1]*dpr);for(i=1;i<drawPts.length;i++)ctx.lineTo(drawPts[i][0]*dpr,drawPts[i][1]*dpr);ctx.strokeStyle=colors['--ink'];ctx.lineWidth=3*dpr;ctx.lineJoin='round';ctx.lineCap='round';ctx.stroke();}
+    return;
+  }
+  if(!hasShape) return;
+  if(recN!==N) reconstruct(N);
+  var n=N, th=prog*TAU;
+  for(var k=n;k>=1;k--){ if(S*Math.max(Math.hypot(A[k],B[k]),Math.hypot(C[k],D[k]))>0.7*dpr){nVis=k;break;} nVis=1; }
+  if(cGhost.checked){
+    ctx.beginPath(); for(i=0;i<M;i++){var gx=L.ox+S*X[i], gy=L.oy-S*Y[i]; if(i)ctx.lineTo(gx,gy); else ctx.moveTo(gx,gy);} ctx.closePath();
+    ctx.fillStyle=colors['--ghost']; ctx.fill();
+  }
+  if(auto&&PX){
+    ctx.beginPath(); for(i=0;i<M;i++){var qx=L.ox+S*PX[i], qy=L.oy-S*PY[i]; if(i)ctx.lineTo(qx,qy); else ctx.moveTo(qx,qy);} ctx.closePath();
+    ctx.globalAlpha=0.22; ctx.strokeStyle=colors['--accent']; ctx.lineWidth=2*dpr; ctx.lineJoin='round'; ctx.stroke(); ctx.globalAlpha=1;
+  }
+  // chains and pen position at the current phase
+  var ex,ey;
+  if(cCircles.checked){ ex=drawChain(L,'x',n,th); ey=drawChain(L,'y',n,th); }
+  else{
+    var sx=0,sy=0; for(var kk=1;kk<=n;kk++){var r1=Math.hypot(A[kk],B[kk]),p1=Math.atan2(B[kk],A[kk]); sx+=r1*Math.cos(kk*th-p1);
+      var r2=Math.hypot(C[kk],D[kk]),p2=Math.atan2(D[kk],C[kk]); sy+=r2*Math.cos(kk*th-p2);}
+    ex={x:L.ox+S*(A[0]+sx),y:0}; ey={x:0,y:L.oy-S*(C[0]+sy)};
+  }
+  var penx=ex.x, peny=ey.y;
+  // trail drawn so far
+  var jmax=Math.min(M-1,Math.floor(prog*M));
+  ctx.beginPath();
+  for(i=0;i<=jmax;i++){var tx=L.ox+S*RX[i], ty=L.oy-S*RY[i]; if(i)ctx.lineTo(tx,ty); else ctx.moveTo(tx,ty);}
+  if(prog>=1) ctx.closePath(); else ctx.lineTo(penx,peny);
+  ctx.strokeStyle=colors['--accent']; ctx.lineWidth=3*dpr; ctx.lineJoin='round'; ctx.lineCap='round'; ctx.stroke();
+  if(cCircles.checked){
+    ctx.setLineDash([7*dpr,6*dpr]); ctx.lineWidth=1.4*dpr; ctx.strokeStyle=colors['--ink'];
+    ctx.beginPath(); ctx.moveTo(ex.x,ex.y); ctx.lineTo(penx,peny); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(ey.x,ey.y); ctx.lineTo(penx,peny); ctx.stroke();
+    ctx.setLineDash([]);
+    [ex,ey].forEach(function(p){ctx.beginPath();ctx.arc(p.x,p.y,3*dpr,0,TAU);ctx.fillStyle=colors['--ink'];ctx.fill();});
+  }
+  ctx.beginPath(); ctx.arc(penx,peny,9*dpr,0,TAU); ctx.fillStyle=colors['--paper']; ctx.fill();
+  ctx.beginPath(); ctx.arc(penx,peny,5.5*dpr,0,TAU); ctx.fillStyle=colors['--accent']; ctx.fill();
+  var fs=Math.round(Math.min(W,H)*0.12*dpr);
+  ctx.font='800 '+fs+'px '+colors['--font']; ctx.textAlign='center'; ctx.textBaseline='alphabetic'; ctx.fillStyle=colors['--accent'];
+  ctx.fillText(String(n),L.ox,cv.height-0.045*cv.height);
+}
+
+/* ---------- controls ---------- */
+function setNQuiet(v){ N=Math.max(1,Math.min(MAXK,Math.round(v))); nIn.value=N; nOut.textContent=N; }
+function resetTrace(){ holdT=0; if(reduceMotion){prog=1;phase='done';} else {prog=0;phase='draw';} }
+function setN(v,fromUser){ setNQuiet(v); if(fromUser){auto=false; PX=null; resetTrace(); updateButtons();} }
+function restartShape(){
+  PX=null; levelIdx=0;
+  if(reduceMotion){auto=false; setNQuiet(40);} else {auto=true; setNQuiet(LEVELS[0]);}
+  resetTrace(); updateButtons();
+}
+function markShape(name){ [].forEach.call(shapesBox.querySelectorAll('[data-shape]'),function(b){b.classList.toggle('on',b.getAttribute('data-shape')===name);}); }
+function selectShape(name){
+  toast(''); stopDraw(); mode=name; markShape(name); var ok=true;
+  if(name==='star') ok=shapeStar();
+  else if(name==='heart') ok=shapeHeart();
+  else if(name==='glyph'){ ok=shapeGlyph(); if(!ok) toast(tr('errNone'),6000); }
+  else if(name==='draw'){ hasShape=false; drawPts=[]; cv.classList.add('draw'); hint.classList.add('show'); updateErr(); updateButtons(); return; }
+  if(ok) restartShape(); else updateButtons();
+}
+function stopDraw(){ drawing=false; cv.classList.remove('draw'); hint.classList.remove('show'); }
+function pos(e){ var r=cv.getBoundingClientRect(); return [e.clientX-r.left,e.clientY-r.top]; }
+cv.addEventListener('pointerdown',function(e){
+  if(mode!=='draw'||!cv.classList.contains('draw')) return;
+  drawing=true; drawPts=[pos(e)]; hint.classList.remove('show'); try{cv.setPointerCapture(e.pointerId);}catch(_){}
+  e.preventDefault();
+});
+cv.addEventListener('pointermove',function(e){ if(drawing){drawPts.push(pos(e));e.preventDefault();} });
+function endDraw(){
+  if(!drawing) return; drawing=false;
+  var lay=layout(), px=[],py=[], i;
+  for(i=0;i<drawPts.length;i++){px.push((drawPts[i][0]-lay.ox)/lay.S); py.push((lay.oy-drawPts[i][1])/lay.S);}
+  var len=0; for(i=1;i<px.length;i++) len+=Math.hypot(px[i]-px[i-1],py[i]-py[i-1]);
+  if(px.length<12||len<1.2){ toast(tr('errShort'),4000); drawPts=[]; hint.classList.add('show'); return; }
+  if(setShapeFromPoints(px,py,5)){ drawPts=[]; stopDraw(); toast(''); restartShape(); }
+}
+cv.addEventListener('pointerup',endDraw); cv.addEventListener('pointercancel',endDraw);
+function applyImage(img){
+  if(shapeFromImage(img,inverted)){ toast(''); mode='photo'; markShape('photo'); stopDraw(); restartShape(); }
+  else{ toast(tr('errNone'),7000); updateButtons(); }
+}
+function loadFile(f){
+  if(!f) return; var url=URL.createObjectURL(f), img=new Image();
+  img.onload=function(){ URL.revokeObjectURL(url); lastImg=img; inverted=false; applyImage(img); };
+  img.onerror=function(){ URL.revokeObjectURL(url); toast(tr('errFile'),7000); };
+  img.src=url;
+}
+fileIn.addEventListener('change',function(){ var f=fileIn.files&&fileIn.files[0]; if(f) loadFile(f); try{fileIn.value='';}catch(_){} });
+['dragover','drop'].forEach(function(ev){stage.addEventListener(ev,function(e){e.preventDefault(); if(ev==='drop'&&e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);});});
+invBtn.addEventListener('click',function(){ if(!lastImg) return; inverted=!inverted; applyImage(lastImg); });
+shapesBox.addEventListener('click',function(e){var b=e.target.closest('button[data-shape]'); if(b) selectShape(b.getAttribute('data-shape'));});
+nIn.addEventListener('input',function(){setN(parseInt(nIn.value,10),true);});
+spIn.addEventListener('input',function(){spOut.textContent=speedLabel();});
+sweepBtn.addEventListener('click',function(){
+  if(auto){auto=false;PX=null;updateButtons();return;}
+  if(!hasShape) return; restartShape();
+});
+pauseBtn.addEventListener('click',function(){paused=!paused;updateButtons();});
+document.getElementById('lang').addEventListener('click',function(){lang=lang==='ru'?'en':'ru';applyLang();});
+document.getElementById('theme').addEventListener('click',function(){
+  var cur=document.documentElement.getAttribute('data-theme');
+  var dark=cur?cur==='dark':window.matchMedia('(prefers-color-scheme: dark)').matches;
+  document.documentElement.setAttribute('data-theme',dark?'light':'dark'); readColors();
+});
+if(window.matchMedia) window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',function(){setTimeout(readColors,0);});
+
+/* ---------- start ---------- */
+readColors();
+if(document.fonts&&document.fonts.ready) document.fonts.ready.then(readColors);
+applyLang();
+selectShape('star');
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
